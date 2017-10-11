@@ -115,6 +115,7 @@ BEGIN_MESSAGE_MAP(CKingTraderDlg, CDialogEx)
 	ON_WM_SYSCOMMAND()
 	ON_WM_PAINT()
 	ON_WM_QUERYDRAGICON()
+    ON_MESSAGE(WM_MSG_KTDLG, OnInfoMessage)
 	ON_BN_CLICKED(IDC_BTN_PATHSHOW, &CKingTraderDlg::OnBnClickedBtnPathshow)
 	ON_BN_CLICKED(IDC_BTN_DT2NUM, &CKingTraderDlg::OnBnClickedBtnDt2num)
 	ON_BN_CLICKED(IDC_BTN_NUM2DT, &CKingTraderDlg::OnBnClickedBtnNum2dt)
@@ -444,6 +445,77 @@ HCURSOR CKingTraderDlg::OnQueryDragIcon()
 	return static_cast<HCURSOR>(m_hIcon);
 }
 
+LRESULT CKingTraderDlg::OnInfoMessage(WPARAM wParam, LPARAM lParam)
+{
+    CString logMessage = L"";
+    CString strCount = L"";
+    DWORD type = wParam;
+    switch (type)
+    {
+    case WM_MSG_WPARAM_STRMSG:
+    {
+        logMessage = CString((LPCTSTR)lParam);
+        m_edtKlineMesg.SetWindowText(logMessage);
+        break;
+    }
+    case WM_MSG_WPARAM_COUNT_DONE:
+    {
+        int iCount = (int)lParam;
+        strCount.Format(L"%d", iCount);
+        m_edtDoneCount.SetWindowText(strCount);
+        break;
+    }
+    case WM_MSG_WPARAM_COUNT_ERROR:
+    {
+        int iCount = (int)lParam;
+        strCount.Format(L"%d", iCount);
+        m_edtErrorCount.SetWindowText(strCount);
+        break;
+    }
+    case WM_MSG_WPARAM_COUNT_ALL:
+    {
+        int iCount = (int)lParam;
+        strCount.Format(L"%d", iCount);
+        m_edtTotalCount.SetWindowText(strCount);
+        break;
+    }
+    case WM_MSG_WPARAM_SPEED:
+    {
+        CString strSpeed = L"0";
+        strSpeed.Format(L"%d", (int)lParam);
+        m_edtSpeed.SetWindowText(strSpeed);
+        break;
+    }
+    case WM_MSG_WPARAM_RESTOFTIME:
+    {
+        int restoftime = (int)lParam;
+        int rot_hour = restoftime / 3600;
+        int rot_minute = (restoftime % 3600) / 60;
+        int rot_second = restoftime % 60;
+        CString strRestOfTime = L"00:00:00";
+        strRestOfTime.Format(L"%02d:%02d:%02d", rot_hour, rot_minute, rot_second);
+        m_edtRestOfTime.SetWindowText(strRestOfTime);
+        break;
+    }
+    case WM_MSG_WPARAM_PROGRESS:
+    {
+        m_pgSave.SetPos((int)lParam);
+        break;
+    }
+    case WM_MSG_WPARAM_BTNENABLE:
+    {
+        if (lParam == 0)
+            enableButtonGroup(false);
+        else
+            enableButtonGroup(true);
+        break;
+    }
+    }
+
+    UpdateData(FALSE);
+    return 0;
+}
+
 void CKingTraderDlg::OnBnClickedBtnPathshow()
 {
 	CString str;
@@ -681,7 +753,7 @@ bool CKingTraderDlg::SaveKline(LPWSTR market, LPWSTR code, int type, KLine &klin
 		ZeroMemory(&sqlcmd, SQLCMD_BUFLEN);
 		swprintf_s(sqlcmd, SQLCMD_BUFLEN,
 			L"%s into Tk%s set stid=\"%s\", date=\"%s\", open=%.02f, high=%.02f, low=%.02f, close=%.02f, vol=%.02f, amount=%.02f, source=\"%s\";",
-			method, kdur, stid, strTime, kline.open, kline.high, kline.low, kline.close, kline.vol, kline.amount, L"KTReader");
+			method, kdur, stid.GetBuffer(), strTime.GetBuffer(), kline.open, kline.high, kline.low, kline.close, kline.vol, kline.amount, L"KTReader");
 		CLog::Instance().Log(LOG_DEBUG, L"Sql[%s]", sqlcmd);
 
 		try
@@ -943,7 +1015,7 @@ UINT CKingTraderDlg::GetStkListThread(LPVOID lParam)
 	ZeroMemory(&buffer, sizeof(CDBAccessBuf));
 
 	ThreadWorkInfo *threaWorkInfo = (ThreadWorkInfo *)lParam;
-	threaWorkInfo->kTraderDlg->enableButtonGroup(false);
+    ::PostMessage(threaWorkInfo->kTraderDlg->m_hWnd, WM_MSG_KTDLG, (WPARAM)WM_MSG_WPARAM_BTNENABLE, (LPARAM)false);
 
 	ret = CheckOpen(gDBAccessMarket[threaWorkInfo->marketIndex].dbAccess, &buffer);
 
@@ -956,10 +1028,10 @@ UINT CKingTraderDlg::GetStkListThread(LPVOID lParam)
 
 	CString strInfo = L"";
 	strInfo.Format(L"获取股票数量:%d", count);
-	threaWorkInfo->kTraderDlg->m_edtKlineMesg.SetWindowText(strInfo);
+    ::PostMessage(threaWorkInfo->kTraderDlg->m_hWnd, WM_MSG_KTDLG, (WPARAM)WM_MSG_WPARAM_STRMSG, (LPARAM)strInfo.GetBuffer());
 
 	delete[] pstockList;
-	threaWorkInfo->kTraderDlg->enableButtonGroup(true);
+    ::PostMessage(threaWorkInfo->kTraderDlg->m_hWnd, WM_MSG_KTDLG, (WPARAM)WM_MSG_WPARAM_BTNENABLE, (LPARAM)true);
 	return 0L;
 }
 
@@ -984,7 +1056,7 @@ UINT CKingTraderDlg::ReadLastNItemThread(LPVOID lParam)
 	ZeroMemory(&secidx, sizeof(kama_SECURITY_IDENTIFY));
 
 	ThreadWorkInfo *threaWorkInfo = (ThreadWorkInfo *)lParam;
-	threaWorkInfo->kTraderDlg->enableButtonGroup(false);
+    ::PostMessage(threaWorkInfo->kTraderDlg->m_hWnd, WM_MSG_KTDLG, (WPARAM)WM_MSG_WPARAM_BTNENABLE, (LPARAM)false);
 
 	ret = CheckOpen(gDBAccessMarket[threaWorkInfo->marketIndex].dbAccess, &buffer);
 
@@ -1005,8 +1077,8 @@ UINT CKingTraderDlg::ReadLastNItemThread(LPVOID lParam)
 	//ret = ReadLastDataItem(pDBAccessMarke->dbAccess, acode, (DWORD *)&buffer);
 
 	if (count < 1) {
-		threaWorkInfo->kTraderDlg->m_edtKlineMesg.SetWindowText(L"没有数据可以读取!");
-		threaWorkInfo->kTraderDlg->enableButtonGroup(true);
+        ::PostMessage(threaWorkInfo->kTraderDlg->m_hWnd, WM_MSG_KTDLG, (WPARAM)WM_MSG_WPARAM_STRMSG, (LPARAM)L"没有数据可以读取!");
+        ::PostMessage(threaWorkInfo->kTraderDlg->m_hWnd, WM_MSG_KTDLG, (WPARAM)WM_MSG_WPARAM_BTNENABLE, (LPARAM)true);
 		return 2L;
 	}
 
@@ -1023,9 +1095,9 @@ UINT CKingTraderDlg::ReadLastNItemThread(LPVOID lParam)
 	CLog::Instance().Log(LOG_INFO, L"ReadLastNItem market:%s code:%s, type:%d, count:%d", gDBAccessMarket[threaWorkInfo->marketIndex].market, threaWorkInfo->code,
 		gDBAccessMarket[threaWorkInfo->marketIndex].type, count);
 	if (us1 != sizeof(KLine)) {
-		threaWorkInfo->kTraderDlg->m_edtKlineMesg.SetWindowText(L"KLine长度错误!");
+        ::PostMessage(threaWorkInfo->kTraderDlg->m_hWnd, WM_MSG_KTDLG, (WPARAM)WM_MSG_WPARAM_STRMSG, (LPARAM)L"KLine长度错误!");
 		delete[] pKbuf;
-		threaWorkInfo->kTraderDlg->enableButtonGroup(true);
+        ::PostMessage(threaWorkInfo->kTraderDlg->m_hWnd, WM_MSG_KTDLG, (WPARAM)WM_MSG_WPARAM_BTNENABLE, (LPARAM)true);
 		return 4L;
 	}
 
@@ -1042,8 +1114,7 @@ UINT CKingTraderDlg::ReadLastNItemThread(LPVOID lParam)
 	CString strKline = L"";
 
 	totalKxCount = buffer.Count / sizeof(KLine);
-	strKline.Format(L"%d", totalKxCount);
-	threaWorkInfo->kTraderDlg->m_edtTotalCount.SetWindowText(strKline);
+    ::PostMessage(threaWorkInfo->kTraderDlg->m_hWnd, WM_MSG_KTDLG, (WPARAM)WM_MSG_WPARAM_COUNT_ALL, (LPARAM)totalKxCount);
 
 	for (idx = 0; idx < totalKxCount; idx++) {
 		if (Number2DateTime(pKbuf[idx].time_high, pKbuf[idx].time_low, cTime)) {
@@ -1053,40 +1124,30 @@ UINT CKingTraderDlg::ReadLastNItemThread(LPVOID lParam)
 			if (!threaWorkInfo->kTraderDlg->SaveKline(gDBAccessMarket[threaWorkInfo->marketIndex].market,
 				threaWorkInfo->code.GetBuffer(), gDBAccessMarket[threaWorkInfo->marketIndex].type, pKbuf[idx], SQLCMD_REPLACE)) {
 				error++;
-				strCount.Format(L"%d", error);
-				threaWorkInfo->kTraderDlg->m_edtErrorCount.SetWindowText(strCount);
+                ::PostMessage(threaWorkInfo->kTraderDlg->m_hWnd, WM_MSG_KTDLG, (WPARAM)WM_MSG_WPARAM_COUNT_ERROR, (LPARAM)error);
 			}
 		}
 		else {
 			strKline.Format(L"数据解析错误!%d", idx);
-			threaWorkInfo->kTraderDlg->m_edtKlineMesg.SetWindowText(strKline);
+            ::PostMessage(threaWorkInfo->kTraderDlg->m_hWnd, WM_MSG_KTDLG, (WPARAM)WM_MSG_WPARAM_STRMSG, (LPARAM)strKline.GetBuffer());
 			error++;
 		}
 
 		doneKxCount = idx + 1;
-
-		strCount.Format(L"%d", doneKxCount);
-		threaWorkInfo->kTraderDlg->m_edtDoneCount.SetWindowText(strCount);
+        ::PostMessage(threaWorkInfo->kTraderDlg->m_hWnd, WM_MSG_KTDLG, (WPARAM)WM_MSG_WPARAM_COUNT_DONE, (LPARAM)doneKxCount);
 
 		progress = 100 * doneKxCount / totalKxCount;
-		threaWorkInfo->kTraderDlg->m_pgSave.SetPos(progress);
+        ::PostMessage(threaWorkInfo->kTraderDlg->m_hWnd, WM_MSG_KTDLG, (WPARAM)WM_MSG_WPARAM_PROGRESS, (LPARAM)progress);
 
 		CTime tmNow = CTime::GetCurrentTime();
 		int diffSec = (int)(tmNow.GetTime() - lastTask.GetTime());
 		if (diffSec > SPEEDSHOW_INTERVAL_SECONDS && doneKxCount < totalKxCount && (doneKxCount - lastKxCount) > 60) {
 			int taskSpeed = (doneKxCount - lastKxCount) / diffSec;
-			CString strSpeed = L"0";
-			strSpeed.Format(L"%d", taskSpeed);
-			threaWorkInfo->kTraderDlg->m_edtSpeed.SetWindowText(strSpeed);
+            ::PostMessage(threaWorkInfo->kTraderDlg->m_hWnd, WM_MSG_KTDLG, (WPARAM)WM_MSG_WPARAM_SPEED, (LPARAM)taskSpeed);
 
 			if (taskSpeed > 1) {
 				int restoftime = (int)(totalKxCount - doneKxCount) / taskSpeed;
-				int rot_hour = restoftime / 3600;
-				int rot_minute = (restoftime % 3600) / 60;
-				int rot_second = restoftime % 60;
-				CString strRestOfTime = L"00:00:00";
-				strRestOfTime.Format(L"%02d:%02d:%02d", rot_hour, rot_minute, rot_second);
-				threaWorkInfo->kTraderDlg->m_edtRestOfTime.SetWindowText(strRestOfTime);
+                ::PostMessage(threaWorkInfo->kTraderDlg->m_hWnd, WM_MSG_KTDLG, (WPARAM)WM_MSG_WPARAM_RESTOFTIME, (LPARAM)restoftime);
 			}
 
 			lastTask = tmNow;
@@ -1094,21 +1155,20 @@ UINT CKingTraderDlg::ReadLastNItemThread(LPVOID lParam)
 		}
 	}
 
-	threaWorkInfo->kTraderDlg->m_pgSave.SetPos(100);
+    ::PostMessage(threaWorkInfo->kTraderDlg->m_hWnd, WM_MSG_KTDLG, (WPARAM)WM_MSG_WPARAM_PROGRESS, (LPARAM)100);
 	CLog::Instance().Log(LOG_INFO, L"Read market:%s code:%s, type:%d, count:%d(error %d).", gDBAccessMarket[threaWorkInfo->marketIndex].market,
 		threaWorkInfo->code, gDBAccessMarket[threaWorkInfo->marketIndex].type, idx, error);
 
 	strKline.Format(L"总共保存 成功:%d, 错误:%d", idx - error, error);
-	threaWorkInfo->kTraderDlg->m_edtKlineMesg.SetWindowText(strKline);
-
+    ::PostMessage(threaWorkInfo->kTraderDlg->m_hWnd, WM_MSG_KTDLG, (WPARAM)WM_MSG_WPARAM_STRMSG, (LPARAM)strKline.GetBuffer());
 	if (pKbuf) {
 		delete[] pKbuf;
 	}
 
 	buffer.KBuffer = NULL;
-	threaWorkInfo->kTraderDlg->m_edtRestOfTime.SetWindowText(L"00:00:00");
+    ::PostMessage(threaWorkInfo->kTraderDlg->m_hWnd, WM_MSG_KTDLG, (WPARAM)WM_MSG_WPARAM_RESTOFTIME, (LPARAM)0);
 	//ReadVerAndSeq(gDBAccessMarket[threaWorkInfo->marketIndex].dbAccess, acode, &ui1, &ll);
-	threaWorkInfo->kTraderDlg->enableButtonGroup(true);
+    ::PostMessage(threaWorkInfo->kTraderDlg->m_hWnd, WM_MSG_KTDLG, (WPARAM)WM_MSG_WPARAM_BTNENABLE, (LPARAM)true);
 	return 0L;
 }
 
@@ -1122,8 +1182,9 @@ UINT CKingTraderDlg::Save2MysqlThread(LPVOID lParam)
 	CDBAccessBuf buffer;
 	ZeroMemory(&buffer, sizeof(CDBAccessBuf));
 
-	MysqlWorkInfo *mysqlWorkInfo = (MysqlWorkInfo *)lParam;
-	mysqlWorkInfo->kTraderDlg->enableButtonGroup(false);
+	MysqlWorkInfo *threaWorkInfo = (MysqlWorkInfo *)lParam;
+
+    ::PostMessage(threaWorkInfo->kTraderDlg->m_hWnd, WM_MSG_KTDLG, (WPARAM)WM_MSG_WPARAM_BTNENABLE, (LPARAM)false);
 
 	LPWSTR method = SQLCMD_REPLACE;
 
@@ -1149,7 +1210,7 @@ UINT CKingTraderDlg::Save2MysqlThread(LPVOID lParam)
 	startTask = cTime = CTime::GetCurrentTime();
 
 	CLog::Instance().Log(LOG_INFO, L"Save2MysqlThread Calc totalKxCount ...");
-	mysqlWorkInfo->kTraderDlg->m_edtKlineMesg.SetWindowText(L"计算K线总数...");
+    ::PostMessage(threaWorkInfo->kTraderDlg->m_hWnd, WM_MSG_KTDLG, (WPARAM)WM_MSG_WPARAM_STRMSG, (LPARAM)L"计算K线总数...");
 
 	for (idx = 0; idx < sizeof(gDBAccessMarket) / sizeof(CDBAccessMarket); idx++) {
 		bool ret = CheckOpen(gDBAccessMarket[idx].dbAccess, &buffer);
@@ -1162,27 +1223,26 @@ UINT CKingTraderDlg::Save2MysqlThread(LPVOID lParam)
 
 		for (jdx = 0; jdx < stkCount; jdx++) {
 			kxCount = ReadDataCount(gDBAccessMarket[idx].dbAccess, pstockList[jdx].code);
-			if (mysqlWorkInfo->isDailyJob) {
+			if (threaWorkInfo->isDailyJob) {
 				kxCount = min(gDBAccessMarket[idx].dailycount, kxCount);
 			}
 			else {
-				if (mysqlWorkInfo->kxCount > 0) {
-					kxCount = min(mysqlWorkInfo->kxCount, kxCount);
+				if (threaWorkInfo->kxCount > 0) {
+					kxCount = min(threaWorkInfo->kxCount, kxCount);
 				}
 			}
 
 			totalKxCount += kxCount;
 			strKline.Format(L"%d", totalKxCount);
-			mysqlWorkInfo->kTraderDlg->m_edtTotalCount.SetWindowText(strKline);
+            ::PostMessage(threaWorkInfo->kTraderDlg->m_hWnd, WM_MSG_KTDLG, (WPARAM)WM_MSG_WPARAM_STRMSG, (LPARAM)strKline.GetBuffer());
 		}
 
 		strKline.Format(L"%d", totalKxCount);
-		mysqlWorkInfo->kTraderDlg->m_edtTotalCount.SetWindowText(strKline);
+        threaWorkInfo->kTraderDlg->m_edtTotalCount.SetWindowText(strKline);
 	}
 
 	CLog::Instance().Log(LOG_INFO, L"Save2MysqlThread Start.(totalKxCount %d)", totalKxCount);
-	strKline.Format(L"%d", totalKxCount);
-	mysqlWorkInfo->kTraderDlg->m_edtTotalCount.SetWindowText(strKline);
+    ::PostMessage(threaWorkInfo->kTraderDlg->m_hWnd, WM_MSG_KTDLG, (WPARAM)WM_MSG_WPARAM_COUNT_ALL, (LPARAM)totalKxCount);
 
 	for (idx = 0; idx < sizeof(gDBAccessMarket) / sizeof(CDBAccessMarket); idx++) {
 		bool ret = CheckOpen(gDBAccessMarket[idx].dbAccess, &buffer);
@@ -1194,12 +1254,12 @@ UINT CKingTraderDlg::Save2MysqlThread(LPVOID lParam)
 				pKbuf = NULL;
 			}
 
-			if (mysqlWorkInfo->isDailyJob) {
+			if (threaWorkInfo->isDailyJob) {
 				kxCount = gDBAccessMarket[idx].dailycount;
 			}
 			else {
-				if (mysqlWorkInfo->kxCount > 0) {
-					kxCount = mysqlWorkInfo->kxCount;
+				if (threaWorkInfo->kxCount > 0) {
+					kxCount = threaWorkInfo->kxCount;
 				}
 				else {
 					kxCount = ReadDataCount(gDBAccessMarket[idx].dbAccess, pstockList[jdx].code);
@@ -1223,7 +1283,7 @@ UINT CKingTraderDlg::Save2MysqlThread(LPVOID lParam)
 			CLog::Instance().Log(LOG_INFO, L"ReadLastNItem market:%s code:%s, type:%d, count:%d", gDBAccessMarket[idx].market, ucode, gDBAccessMarket[idx].type, kxCount);
 
 			if (us1 != sizeof(KLine)) {
-				mysqlWorkInfo->kTraderDlg->m_edtKlineMesg.SetWindowText(L"KLine长度错误!");
+                ::PostMessage(threaWorkInfo->kTraderDlg->m_hWnd, WM_MSG_KTDLG, (WPARAM)WM_MSG_WPARAM_STRMSG, (LPARAM)L"KLine长度错误!");
 				delete[] pKbuf;
 				doneKxCount += kxCount;
 				continue;
@@ -1232,18 +1292,16 @@ UINT CKingTraderDlg::Save2MysqlThread(LPVOID lParam)
 			for (kdx = 0; kdx < kxCount; kdx++) {
 				doneKxCount++;
 
-				if (!mysqlWorkInfo->kTraderDlg->SaveKline(gDBAccessMarket[idx].market, ucode, gDBAccessMarket[idx].type, pKbuf[kdx], method)) {
+				if (!threaWorkInfo->kTraderDlg->SaveKline(gDBAccessMarket[idx].market, ucode, gDBAccessMarket[idx].type, pKbuf[kdx], method)) {
 					error++;
-					strCount.Format(L"%d", error);
-					mysqlWorkInfo->kTraderDlg->m_edtErrorCount.SetWindowText(strCount);
+                    ::PostMessage(threaWorkInfo->kTraderDlg->m_hWnd, WM_MSG_KTDLG, (WPARAM)WM_MSG_WPARAM_COUNT_ERROR, (LPARAM)error);
 				}
 
-				strCount.Format(L"%d", doneKxCount);
-				mysqlWorkInfo->kTraderDlg->m_edtDoneCount.SetWindowText(strCount);
+                ::PostMessage(threaWorkInfo->kTraderDlg->m_hWnd, WM_MSG_KTDLG, (WPARAM)WM_MSG_WPARAM_COUNT_DONE, (LPARAM)doneKxCount);
 
 				int progress = 100 * doneKxCount / totalKxCount;
 				if (progress - lastProgress >= 1 || progress >= 99) {
-					mysqlWorkInfo->kTraderDlg->m_pgSave.SetPos(progress);
+                    ::PostMessage(threaWorkInfo->kTraderDlg->m_hWnd, WM_MSG_KTDLG, (WPARAM)WM_MSG_WPARAM_PROGRESS, (LPARAM)progress);
 					lastProgress = progress;
 				}
 
@@ -1251,18 +1309,11 @@ UINT CKingTraderDlg::Save2MysqlThread(LPVOID lParam)
 				int diffSec = (int)(tmNow.GetTime() - lastTask.GetTime());
 				if (diffSec > SPEEDSHOW_INTERVAL_SECONDS && doneKxCount < totalKxCount && (doneKxCount - lastKxCount) > 60) {
 					int taskSpeed = (doneKxCount - lastKxCount) / diffSec;
-					CString strSpeed = L"0";
-					strSpeed.Format(L"%d", taskSpeed);
-					mysqlWorkInfo->kTraderDlg->m_edtSpeed.SetWindowText(strSpeed);
+                    ::PostMessage(threaWorkInfo->kTraderDlg->m_hWnd, WM_MSG_KTDLG, (WPARAM)WM_MSG_WPARAM_SPEED, (LPARAM)taskSpeed);
 
 					if (taskSpeed > 1) {
 						int restoftime = (int)(totalKxCount - doneKxCount) / taskSpeed;
-						int rot_hour = restoftime / 3600;
-						int rot_minute = (restoftime % 3600) / 60;
-						int rot_second = restoftime % 60;
-						CString strRestOfTime = L"00:00:00";
-						strRestOfTime.Format(L"%02d:%02d:%02d", rot_hour, rot_minute, rot_second);
-						mysqlWorkInfo->kTraderDlg->m_edtRestOfTime.SetWindowText(strRestOfTime);
+                        ::PostMessage(threaWorkInfo->kTraderDlg->m_hWnd, WM_MSG_KTDLG, (WPARAM)WM_MSG_WPARAM_RESTOFTIME, (LPARAM)restoftime);
 					}
 
 					lastTask = tmNow;
@@ -1281,12 +1332,12 @@ UINT CKingTraderDlg::Save2MysqlThread(LPVOID lParam)
 	}
 
 	strCount.Format(L"K线总数:%d, 完成:%d，错误:%d", totalKxCount, doneKxCount, error);
-	mysqlWorkInfo->kTraderDlg->m_edtKlineMesg.SetWindowText(strCount);
-	mysqlWorkInfo->kTraderDlg->m_pgSave.SetPos(100);
+    ::PostMessage(threaWorkInfo->kTraderDlg->m_hWnd, WM_MSG_KTDLG, (WPARAM)WM_MSG_WPARAM_STRMSG, (LPARAM)strCount.GetBuffer());
+    ::PostMessage(threaWorkInfo->kTraderDlg->m_hWnd, WM_MSG_KTDLG, (WPARAM)WM_MSG_WPARAM_PROGRESS, (LPARAM)100);
 
-	mysqlWorkInfo->kTraderDlg->m_edtRestOfTime.SetWindowText(L"00:00:00");
+    ::PostMessage(threaWorkInfo->kTraderDlg->m_hWnd, WM_MSG_KTDLG, (WPARAM)WM_MSG_WPARAM_RESTOFTIME, (LPARAM)0);
 
 	CLog::Instance().Log(LOG_INFO, L"Save2MysqlThread Done.");
-	mysqlWorkInfo->kTraderDlg->enableButtonGroup(true);
-	return 0L;
+    ::PostMessage(threaWorkInfo->kTraderDlg->m_hWnd, WM_MSG_KTDLG, (WPARAM)WM_MSG_WPARAM_BTNENABLE, (LPARAM)true);
+    return 0L;
 }

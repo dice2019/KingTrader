@@ -11,6 +11,19 @@
 #define BUFFER_LEN 0x1000
 #define SPEEDSHOW_INTERVAL_SECONDS 2
 
+#define WM_MSG_KTDLG	WM_USER+1000
+
+#define WM_MSG_WPARAM_STRMSG			1
+#define WM_MSG_WPARAM_COUNT_DONE		2
+#define WM_MSG_WPARAM_COUNT_ERROR   	3
+#define WM_MSG_WPARAM_COUNT_ALL			4
+
+#define WM_MSG_WPARAM_SPEED				5
+#define WM_MSG_WPARAM_RESTOFTIME		6 //RestOfTime
+#define WM_MSG_WPARAM_PROGRESS			7
+
+#define WM_MSG_WPARAM_BTNENABLE			8
+
 typedef struct _CDBAccessMarket {
 	LPWSTR market;
 	int type;
@@ -69,6 +82,7 @@ protected:
 	afx_msg void OnSysCommand(UINT nID, LPARAM lParam);
 	afx_msg void OnPaint();
 	afx_msg HCURSOR OnQueryDragIcon();
+    afx_msg LRESULT OnInfoMessage(WPARAM wParam, LPARAM lParam);
 	DECLARE_MESSAGE_MAP()
 
 	void enableButtonGroup(bool enable);
